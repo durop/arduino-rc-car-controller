@@ -17,7 +17,8 @@ const int GREEN_BUTTON_LED_PIN = 6;
 const int RED_BUTTON_PIN = 9;
 const int RED_BUTTON_LED_PIN = 7;
 
-StaticJsonDocument<200> joystick;
+StaticJsonDocument<50> joystick;
+StaticJsonDocument<50> buttons;
 
 unsigned int sw = 0;
 volatile unsigned int x = 500;
@@ -44,7 +45,7 @@ void setup() {
 
   Serial.begin(9600);
   delay(100);
-  
+
   radio.begin();
   radio.openWritingPipe(address);
   radio.setPALevel(RF24_PA_MIN);
@@ -57,13 +58,13 @@ void loop() {
   int greenButton = digitalRead(GREEN_BUTTON_PIN);
   int redButton = digitalRead(RED_BUTTON_PIN);
 
-
   if (greenButton == LOW) {
     Serial.print("Green low! ");
     Serial.println(isGreenButtonActive);
     isGreenButtonActive = !isGreenButtonActive;
     digitalWrite(GREEN_BUTTON_LED_PIN, isGreenButtonActive  ? HIGH : LOW);
-    delay(100);
+    checkButtons(isGreenButtonActive, isRedButtonActive);
+    delay(150);
   }
 
   if (redButton == LOW) {
@@ -71,17 +72,27 @@ void loop() {
     Serial.println(isRedButtonActive);
     isRedButtonActive = !isRedButtonActive;
     digitalWrite(RED_BUTTON_LED_PIN, isRedButtonActive ? HIGH : LOW);
-    delay(100);
+    checkButtons(isGreenButtonActive, isRedButtonActive);
+    delay(150);
   }
 
-  delay(100);
+  checkControlInputs();
 
-  const char text[] = "Hello World";
-  radio.write(&text, sizeof(text));
-  delay(1000);
+  delay(50);
 }
 
-void loop2() {
+void checkButtons(int isGreenButtonActive, int isRedButtonActive) {
+  buttons["green"] = isGreenButtonActive;
+  buttons["red"] = isRedButtonActive;
+
+  char output[128];
+
+  serializeJson(buttons, output);
+  radio.write(&output, sizeof(output));
+
+}
+
+void checkControlInputs() {
 
   int newSw = digitalRead(SW_PIN);
   int newX = analogRead(X_PIN);
@@ -91,13 +102,15 @@ void loop2() {
   int deltaY = newY - y;
 
   if ((abs(deltaX) > 5) || (abs(deltaY) > 5) || newSw != sw) {
-    digitalWrite(LED_BUILTIN, HIGH);
 
-    joystick["sw"] = sw;
-    joystick["x"] = x;
-    joystick["y"] = y;
-    serializeJson(joystick, Serial);
-    Serial.flush();
+    joystick["sw"] = newSw;
+    joystick["x"] = newX;
+    joystick["y"] = newY;
+
+    char output[128];
+
+    serializeJson(joystick, output);
+    radio.write(&output, sizeof(output));
 
     if (false) {
       Serial.println("");
@@ -119,5 +132,4 @@ void loop2() {
     y = newY;
     x = newX;
   }
-  digitalWrite(LED_BUILTIN, LOW);
 }
